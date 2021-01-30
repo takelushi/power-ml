@@ -7,3 +7,6 @@ __pycache__/
 
 # Reports
 report/
+
+# Temporary
+tmp/
