@@ -15,18 +15,17 @@ from power_ml.data.store import BaseStore
 class LocalPickleStore(BaseStore):
     """Local pickle store."""
 
-    def __init__(
-        self,
-        root: str,
-        logger: logging.Logger = None,
-    ) -> None:
+    def __init__(self,
+                 root: str,
+                 logger: logging.Logger = None,
+                 **kwargs) -> None:
         """Initialize object."""
-        super().__init__(logger=logger, root=root)
-
-    def init(self, root: str) -> None:  # type: ignore
-        """Init store."""
         self.root = root
         self.root = os.path.abspath(self.root)
+        super().__init__(logger=logger, root=root)
+
+    def init(self, **kwargs) -> None:
+        """Init store."""
         os.makedirs(self.root, exist_ok=True)
 
     def _get_pickle_path(self, name: str) -> str:
