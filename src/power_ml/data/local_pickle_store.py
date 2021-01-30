@@ -147,10 +147,13 @@ class LocalPickleStore(BaseStore):
                 prefix += '_'
             name = prefix + name
 
-        self._rename(tmp_name, name, exist_ok=exist_ok)
-
-        meta['created_at'] = datetime.datetime.now()
-        self.save_meta(meta, name, exist_ok=exist_ok)
+        try:
+            self._rename(tmp_name, name, exist_ok=exist_ok)
+            meta['created_at'] = datetime.datetime.now()
+            self.save_meta(meta, name, exist_ok=exist_ok)
+        except FileExistsError as exc:
+            self._remove_data(tmp_name)
+            raise exc
 
         self.logger.debug('Saved: "{}", {}'.format(name, meta))
         return name
