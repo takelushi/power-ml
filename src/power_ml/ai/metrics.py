@@ -2,16 +2,14 @@
 
 from abc import ABC, abstractclassmethod
 from enum import Enum
-from typing import Any, Type, Union
+from typing import Any, Type
 
-import numpy as np
-import pandas as pd
 import sklearn.metrics
 
-Y_TYPE = Union[list, np.ndarray, pd.Series]
+from power_ml.ai.types import Y_TYPE
 
 
-class Metric(ABC):
+class BaseMetric(ABC):
     """Metric."""
 
     def __new__(cls, y_true: Y_TYPE, y_pred: Y_TYPE, **kwargs: Any) -> Any:
@@ -36,7 +34,7 @@ class Metric(ABC):
         raise NotImplementedError()
 
 
-class NumericMetric(Metric, ABC):
+class NumericMetric(BaseMetric, ABC):
     """Numeric metric."""
 
     def __new__(  # type: ignore
@@ -116,7 +114,7 @@ class TargetType(Enum):
     REGRESSION = 'regression'
 
 
-METRICS: dict[str, dict[str, Type[Metric]]] = {
+METRICS: dict[str, dict[str, Type[BaseMetric]]] = {
     TargetType.REGRESSION.value: {
         'mae': MAE,
         'mape': MAPE,
