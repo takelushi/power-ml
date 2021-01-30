@@ -7,7 +7,7 @@ inline-quotes = single
 multiline-quotes = double
 
 # flake8-import-order
-application-import-names = power_ai
+application-import-names = power_ml
 import-order-style = google
 
 # flake8-coding
