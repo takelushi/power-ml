@@ -14,7 +14,7 @@ class BaseMetric(ABC):
 
     def __new__(cls, y_true: Y_TYPE, y_pred: Y_TYPE, **kwargs: Any) -> Any:
         """Calculate metric."""
-        return cls.calc(y_true, y_pred, **kwargs)
+        return cls.calc(y_true, y_pred, **kwargs)  # type: ignore
 
     @abstractclassmethod
     def calc(
