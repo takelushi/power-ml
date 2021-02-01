@@ -34,7 +34,8 @@ for col_perm in perm.iter_perm():
     print('{:10},  {:.4f},  {:.4f}'.format(col, weight, score))
 
 # Analyzed permutation importance
-perms = perm.calc()
+# n_jobs=-1: Use all CPU cores.
+perms = perm.calc(n_jobs=-1)
 print(perms)
 
 # Check MAE.

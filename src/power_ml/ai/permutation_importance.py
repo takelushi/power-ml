@@ -3,6 +3,7 @@
 from abc import ABC
 from typing import Iterable, Type
 
+import combu
 import numpy as np
 import pandas as pd
 
@@ -14,12 +15,15 @@ from power_ml.ai.types import X_TYPE, Y_TYPE
 class PermutationImportance(ABC):
     """Permutation Importance."""
 
-    def __init__(self,
-                 predictor: BasePredictor,
-                 metric: Type[NumericMetric],
-                 x: pd.DataFrame,
-                 y: Y_TYPE,
-                 n: int = 1) -> None:
+    def __init__(
+        self,
+        predictor: BasePredictor,
+        metric: Type[NumericMetric],
+        x: pd.DataFrame,
+        y: Y_TYPE,
+        n: int = 1,
+        n_jobs: int = 1,
+    ) -> None:
         """Initialize object.
 
         Args:
@@ -51,22 +55,35 @@ class PermutationImportance(ABC):
             total += self.evaluate(x_shuffle, self.y)
         return total / self.n
 
-    def iter_perm(self) -> Iterable[tuple[str, float, float]]:
+    def iter_perm(self, n_jobs: int = 1) -> Iterable[tuple[str, float, float]]:
         """Iterate Permutation Importance.
+
+        Args:
+            n_jobs (int, optional): Parallel num. Defaults to 1.
 
         Yields:
             str: Column name.
             float: Weight. (Shuffuled score / real score)
             float: Score.
         """
-        cols: list[str] = list(self.x.columns)
-        for col in cols:
-            score = self.shuffle_and_evaluate(col)
+        iter_comb = combu.execute(self.shuffle_and_evaluate,
+                                  {'col': list(self.x.columns)},
+                                  n_jobs=n_jobs)
+        for result in iter_comb:
+            score = result[0]
+            col = result[1]['col']
             yield col, score / self.score, score
 
-    def calc(self) -> pd.DataFrame:
-        """Calculate  Permutation Importance."""
-        perms = list(self.iter_perm())
+    def calc(self, n_jobs: int = 1) -> pd.DataFrame:
+        """Calculate  Permutation Importance.
+
+        Args:
+            n_jobs (int, optional): Parallel num. Defaults to 1.
+
+        Returns:
+            pd.DataFrame: Result.
+        """
+        perms = list(self.iter_perm(n_jobs=n_jobs))
         df = pd.DataFrame(perms, columns=['Column', 'Weight', 'Score'])
         df = df.sort_values(by=['Weight'], ascending=False)
         df['Top'] = df['Weight'].rank(ascending=False).astype(int)
