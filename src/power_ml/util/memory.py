@@ -1,17 +1,18 @@
 """Memory."""
 
-import sys
+import os
+
+import psutil
+
+UNITS = ['B', 'KB', 'MB', 'GB', 'TB']
 
 
-def show_memory_usage() -> dict[str, int]:
-    """Show memory usage."""
-    print('{}{: >25}{}{: >10}{}'.format('|', 'Variable Name', '|', 'Memory',
-                                        '|'))
-    print(' ------------------------------------ ')
-    result = {}
-    for name in dir():
-        if not name.startswith('_'):
-            size = sys.getsizeof(eval(name))
-            result[name] = size
-            print('{}{: >25}{}{: >10}{}'.format('|', name, '|', size, '|'))
-    return result
+def get_process_memory(unit: str = 'B') -> int:
+    """Get process memory size.
+
+    Returns:
+        int: Memory size.
+    """
+    n = UNITS.index(unit)
+    v = psutil.Process(os.getpid()).memory_info().rss
+    return v / (1024**n)
