@@ -9,7 +9,6 @@ from power_ml.ai.model import Model
 from power_ml.ai.predictor.base_predictor import BasePredictor
 from power_ml.ai.selection.selector import SELECTORS
 from power_ml.ai.selection.split import split_index
-from power_ml.data.store import BaseStore
 from power_ml.platform.catalog import Catalog
 from power_ml.stats.col_stats import get_col_stats
 from power_ml.util.seed import set_seed, set_seed_random
@@ -21,7 +20,7 @@ class PowerModel:
     def __init__(self,
                  target_type: str,
                  target: str,
-                 store: BaseStore,
+                 catalog: Catalog,
                  data: Any,
                  seed: int = None) -> None:
         """Initialize object."""
@@ -32,11 +31,11 @@ class PowerModel:
         self.seed = seed
         self.target_type = target_type
         self.target = target
-        self.catalog = Catalog('./tmp/catalog.json', store)
+        self.catalog = catalog
         # TODO: Check data exist.
 
         if isinstance(data, str):
-            data = store.load(data)
+            data = self.catalog.store.load(data)
 
         data_id = self.catalog.save_table(data)
         self._data: dict[str, Any] = {'master': data_id}

@@ -5,10 +5,10 @@ from sklearn.datasets import load_boston
 
 from power_ml.ai.predictor.light_gbm import LightGBM
 from power_ml.data.local_pickle_store import LocalPickleStore
+from power_ml.platform.catalog import Catalog
 from power_ml.platform.power_model import PowerModel
 
-store = LocalPickleStore('./tmp/store')
-
+catalog = Catalog('./tmp/catalog.json', LocalPickleStore('./tmp/store'))
 dataset = load_boston()
 data = pd.DataFrame(dataset['data'], columns=dataset['feature_names'])
 data['target'] = dataset['target']
@@ -16,7 +16,7 @@ data['target'] = dataset['target']
 predictor_class = LightGBM
 train_param = {'objective': 'regression'}
 
-power_model = PowerModel('regression', 'target', store, data, seed=2)
+power_model = PowerModel('regression', 'target', catalog, data, seed=2)
 print(power_model.calc_column_stats())
 
 base_idx = power_model.split_trn_val(0.8)
