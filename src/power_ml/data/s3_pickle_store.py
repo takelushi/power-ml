@@ -91,6 +91,8 @@ class S3PickleStore(BaseStore):
         else:
             s3.Object(self.bucket_name, name).download_file(path)
             data = self.pickle_store._load_data(name)
+
+        if not self.cache:
             self.pickle_store._remove_data(name)
         return data
 
