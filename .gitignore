@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+.coverage
+
+# Editor
+.vscode/
+
+# Reports
+report/
+
+# Temporary
+tmp/
+
+# Build
+dist/
