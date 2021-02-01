@@ -12,15 +12,27 @@ tst_x, tst_y = x[400:], y[400:]
 
 # Linear Regression
 predictor = SklearnPredictor(LinearRegression, 'regression')
-predictor.fit(trn_x, trn_y)
+predictor.train(trn_x, trn_y)
 score, _ = predictor.evaluate(tst_x, tst_y)
 print(score)
 
 # LightGBM
-predictor = LightGBM('regression')
 param = {
     'objective': 'regression',
 }
-predictor.fit(trn_x, trn_y, param=param)
+predictor = LightGBM('regression', param=param)
+predictor.train(trn_x, trn_y)
 score, _ = predictor.evaluate(tst_x, tst_y)
 print(score)
+
+# Get train parameters.
+print(predictor.get_train_param())
+
+# Get information
+print(predictor.info)
+
+# Check predictor is same or not with hash.
+new_predictor = LightGBM('regression', param=param)
+predictor_hash = predictor.info['hash']
+new_predictor_hash = new_predictor.hash_train(trn_x, trn_y)
+print(predictor_hash == new_predictor_hash)

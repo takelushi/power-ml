@@ -13,6 +13,7 @@ pandas = "^1.2.1"
 boto3 = "^1.16.63"
 lightgbm = "^3.1.1"
 psutil = "^5.8.0"
+joblib = "^1.0.0"
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2.2"

@@ -15,7 +15,7 @@ y = dataset['target']
 
 # Train model.
 predictor = SklearnPredictor(LinearRegression, 'regression', metrics=[MAE])
-predictor.fit(x, y)
+predictor.train(x, y)
 
 # Initialize.
 perm = PermutationImportance(predictor, MAE, x, y, n=20)
@@ -46,7 +46,7 @@ worse_features = list(perms[perms['Type'] == 'worse']['Column'])
 print('Worse features: {}'.format(worse_features))
 x = x.drop(columns=worse_features)
 redictor = SklearnPredictor(LinearRegression, 'regression', metrics=[MAE])
-predictor.fit(x, y)
+predictor.train(x, y)
 
 # MAE will more better.
 print(predictor.evaluate(x, y)[0])
