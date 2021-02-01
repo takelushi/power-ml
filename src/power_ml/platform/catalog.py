@@ -18,11 +18,15 @@ class Catalog:
         self.db = TinyDB(db_path)
         self.store = store
 
-    def _save(self, table_name: str, row: dict, data: Any) -> None:
+    def _save(self,
+              table_name: str,
+              row: dict,
+              data: Any,
+              overwrite: bool = True) -> None:
         table = self.db.table(table_name)
         q = Query()
         res = table.search(q.id == row['id'])
-        if len(res) == 0:
+        if not overwrite and len(res) == 0:
             data_name = self.store.save(data)
             row['store_name'] = data_name
             table.insert(row)
@@ -37,7 +41,7 @@ class Catalog:
         if isinstance(data, pd.Index):
             raise TypeError('The index should be save with save_index().')
         data_id = joblib.hash(data)
-        self._save('table', {'id': data_id}, data)
+        self._save('table', {'id': data_id}, data, overwrite=False)
         return data_id
 
     def load_table(self, data_id: str) -> Any:
@@ -47,7 +51,8 @@ class Catalog:
         if not isinstance(idx, pd.Index):
             raise TypeError('Not index. type: {}'.format(type(idx)))
         index_id = joblib.hash(idx)
-        self._save('index', {'id': index_id, 'data_id': data_id}, idx)
+        row = {'id': index_id, 'data_id': data_id}
+        self._save('index', row, idx, overwrite=False)
         return index_id
 
     def load_index(self, index_id: str) -> pd.Index:

@@ -217,3 +217,16 @@ class PowerModel:
             score_mean[metric] = np.mean(scores[metric])
 
         return score_mean, results
+
+    def calc_perm(self, model_id: str, idx_id: str,
+                  n: int) -> dict[str, pd.DataFrame]:
+        set_seed(self.seed)
+        model = self.catalog.load_model(model_id)
+        data_id = self._data['master']
+        data_idx = self.catalog.load_index(idx_id)
+        data = self.catalog.load_table(data_id).iloc[data_idx]
+        x = data.drop(columns=[self.target])
+        y = data[self.target]
+        result = model.calc_perm(x, y, n=n)
+        self.catalog.save_model(model)
+        return result
