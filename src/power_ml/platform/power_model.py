@@ -149,7 +149,7 @@ class PowerModel:
         data = self.catalog.load_table(self._data['master']).iloc[data_idx]
         x = data.drop(columns=[self.target])
         y = data[self.target]
-        model_id = model._predictor.hash_train(x, y)
+        model_id = model.hash_model(x, y)
         try:
             model = self.catalog.load_model(model_id)
         except IndexError:

@@ -26,7 +26,7 @@ class Catalog:
         table = self.db.table(table_name)
         q = Query()
         res = table.search(q.id == row['id'])
-        if not overwrite and len(res) == 0:
+        if overwrite or len(res) == 0:
             data_name = self.store.save(data)
             row['store_name'] = data_name
             table.insert(row)
@@ -60,7 +60,7 @@ class Catalog:
 
     def save_model(self, model: Model) -> str:
         # TODO: Is instance BaseModel?
-        model_id = model.predictor_hash
+        model_id = model.info['id']
         self._save('model', {'id': model_id}, model)
         return model_id
 
