@@ -15,7 +15,8 @@ tst_x_name = store.save(x[400:])
 tst_y_name = store.save(y[400:])
 
 
-def train(param: dict):
+def train(param: dict) -> tuple[LightGBM, dict]:
+    """Train function."""
     trn_x = store.load(trn_x_name)
     trn_y = store.load(trn_y_name)
     tst_x = store.load(tst_x_name)
