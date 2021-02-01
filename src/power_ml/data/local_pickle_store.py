@@ -135,7 +135,7 @@ class LocalPickleStore(BaseStore):
         if meta is None:
             meta = {}
         meta['type'] = obj.__class__
-        meta['str'] = str(obj)[:100]
+        meta['str'] = str(obj)[:10]
 
         tmp_name = 'tmp_{}'.format(uuid.uuid4())
         self._save_data(obj, tmp_name, exist_ok=exist_ok)
@@ -181,7 +181,8 @@ class LocalPickleStore(BaseStore):
         meta = self.load_meta(name)
         if validate:
             assert isinstance(obj, meta['type'])
-            assert meta['str'] == str(obj)[:100]
+            meta_str = str(obj)[:10]
+            assert meta['str'] == meta_str
 
         self.logger.debug('Loaded: "{}"'.format(name))
         return obj, meta

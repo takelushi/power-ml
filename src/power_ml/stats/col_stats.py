@@ -1,4 +1,4 @@
-"""Analyze DataFrame metrics."""
+"""Analyze Column Stats."""
 
 from typing import Iterable
 
@@ -8,7 +8,7 @@ import pandas as pd
 from power_ml.util.numeric import round_float
 
 
-def calc_col_infos(df: pd.DataFrame) -> Iterable[tuple[str, dict]]:
+def calc_col_stats(df: pd.DataFrame) -> Iterable[tuple[str, dict]]:
     """Calculate column infos.
 
     Args:
@@ -50,7 +50,7 @@ def calc_col_infos(df: pd.DataFrame) -> Iterable[tuple[str, dict]]:
         yield col, col_info
 
 
-def get_col_info(df: pd.DataFrame, pretty: bool = True) -> pd.DataFrame:
+def get_col_stats(df: pd.DataFrame, pretty: bool = True) -> pd.DataFrame:
     """Get column info.
 
     Args:
@@ -59,7 +59,7 @@ def get_col_info(df: pd.DataFrame, pretty: bool = True) -> pd.DataFrame:
     Returns:
         pd.DataFrame: Column info.
     """
-    col_infos = {col: col_info for col, col_info in calc_col_infos(df)}
+    col_infos = {col: col_info for col, col_info in calc_col_stats(df)}
 
     result = pd.DataFrame([{'column': k, **v} for k, v in col_infos.items()])
     if pretty:
