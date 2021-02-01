@@ -10,6 +10,7 @@ from power_ml.ai.predictor.base_predictor import BasePredictor
 from power_ml.ai.selection.selector import SELECTORS
 from power_ml.ai.selection.split import split_index
 from power_ml.data.store import BaseStore
+from power_ml.platform.catalog import Catalog
 from power_ml.stats.col_stats import get_col_stats
 from power_ml.util.seed import set_seed, set_seed_random
 
@@ -21,7 +22,7 @@ class PowerModel:
                  target_type: str,
                  target: str,
                  store: BaseStore,
-                 data: str,
+                 data: Any,
                  seed: int = None) -> None:
         """Initialize object."""
         if seed is None:
@@ -31,12 +32,14 @@ class PowerModel:
         self.seed = seed
         self.target_type = target_type
         self.target = target
-        self.store = store
+        self.catalog = Catalog('./tmp/catalog.json', store)
         # TODO: Check data exist.
 
-        if not isinstance(data, str):
-            data = store.save(data)
-        self._data: dict[str, Any] = {'master': data}
+        if isinstance(data, str):
+            data = store.load(data)
+
+        data_id = self.catalog.save_table(data)
+        self._data: dict[str, Any] = {'master': data_id}
 
     def _register_trn_val(self,
                           data_type: str,
@@ -46,21 +49,21 @@ class PowerModel:
         if data_type not in ['base', 'validation']:
             raise ValueError(
                 'Cannot register. data_type must be base or validation')
-
-        master_data = self.store.load(self._data['master'])
-        trn_idx_name = self.store.save(trn_idx)
+        data_id = self._data['master']
+        master_data = self.catalog.load_table(data_id)
+        trn_idx_id = self.catalog.save_index(data_id, trn_idx)
 
         if val_idx is not None:
-            val_idx_name = self.store.save(val_idx)
+            val_idx_id = self.catalog.save_index(data_id, val_idx)
         else:
             val_idx = master_data.drop(trn_idx).index
-            val_idx_name = self.store.save(val_idx)
+            val_idx_id = self.catalog.save_index(data_id, val_idx)
 
         # Check index.
         _ = master_data.iloc[trn_idx]
         _ = master_data.iloc[val_idx]
 
-        names = (trn_idx_name, val_idx_name)
+        names = (trn_idx_id, val_idx_id)
         if data_type == 'base':
             self._data['base'] = names
         elif data_type == 'validation':
@@ -82,12 +85,12 @@ class PowerModel:
             raise ValueError('Already registered.')
 
         self._data['validation'] = []
-        names_li = []
+        ids_li = []
         for idx in idx_list:
-            names_li.append(
+            ids_li.append(
                 self._register_trn_val('validation', idx[0], val_idx=idx[1]))
 
-        return names_li
+        return ids_li
 
     def split_trn_val(self, train_ratio: float) -> tuple[str, str]:
         """Split train and validation.
@@ -103,7 +106,7 @@ class PowerModel:
         if 'base' in self._data:
             raise ValueError('Already registered.')
 
-        master_data = self.store.load(self._data['master'])
+        master_data = self.catalog.load_table(self._data['master'])
         trn_idx, val_idx = split_index(master_data, train_ratio)
 
         return self.register_trn_val(trn_idx, val_idx)
@@ -119,7 +122,7 @@ class PowerModel:
         selector_class: type = SELECTORS[selector_name]
         if param is None:
             param = {}
-        master_data = self.store.load(self._data['master'])
+        master_data = self.catalog.load_table(self._data['master'])
 
         selector = selector_class(**param)
 
@@ -127,14 +130,14 @@ class PowerModel:
 
     def calc_column_stats(self) -> pd.DataFrame:
         """Calculate column stats."""
-        master_data = self.store.load(self._data['master'])
+        master_data = self.catalog.load_table(self._data['master'])
         self.col_stats = get_col_stats(master_data)
         return self.col_stats
 
     def train(
         self,
         predictor_class: Type[BasePredictor],
-        idx_name: str,
+        idx_id: str,
         param: dict = None,
     ) -> str:
         """Train."""
@@ -142,51 +145,55 @@ class PowerModel:
         predictor = predictor_class(self.target_type, param=param)
         # If model exist use exist model and not train.
         model = Model(predictor)
-        data_idx = self.store.load(idx_name)
-        data = self.store.load(self._data['master']).iloc[data_idx]
+        data_idx = self.catalog.load_index(idx_id)
+        data = self.catalog.load_table(self._data['master']).iloc[data_idx]
         x = data.drop(columns=[self.target])
         y = data[self.target]
-        model.train(x, y)
-        model_name = self.store.save(model)
-        return model_name
+        model_id = model._predictor.hash_train(x, y)
+        try:
+            model = self.catalog.load_model(model_id)
+        except IndexError:
+            model.train(x, y)
+            self.catalog.save_model(model)
+        return model_id
 
-    def predict(self, model_name: str, idx_name: str) -> str:
+    def predict(self, model_id: str, idx_id: str) -> str:
         """Predict."""
         set_seed(self.seed)
-        model: Model = self.store.load(model_name)
-        data_idx = self.store.load(idx_name)
-        data = self.store.load(self._data['master']).iloc[data_idx]
+        model = self.catalog.load_model(model_id)
+        data_id = self._data['master']
+        data_idx = self.catalog.load_index(idx_id)
+        data = self.catalog.load_table(data_id).iloc[data_idx]
         x = data.drop(columns=[self.target])
 
         y_pred = model.predict(x)
-        y_pred_name = self.store.save(y_pred)
-        return y_pred_name
+        y_pred_id = self.catalog.save_table(y_pred)
+        return y_pred_id
 
-    def validate(self, model_name: str, idx_name: str) -> tuple[dict, str]:
+    def validate(self, model_id: str, idx_id: str) -> tuple[dict, str]:
         """Validate."""
         set_seed(self.seed)
-        model: Model = self.store.load(model_name)
-        data_idx = self.store.load(idx_name)
-        data = self.store.load(self._data['master']).iloc[data_idx]
+        model = self.catalog.load_model(model_id)
+        data_id = self._data['master']
+        data_idx = self.catalog.load_index(idx_id)
+        data = self.catalog.load_table(data_id).iloc[data_idx]
         x = data.drop(columns=[self.target])
         y = data[self.target]
         score, y_pred = model.validate(x, y)
-        y_pred_name = self.store.save(y_pred)
-        return score, y_pred_name
+        y_pred_id = self.catalog.save_table(y_pred)
+        return score, y_pred_id
 
     def train_validate(
         self,
         predictor_class: Type[BasePredictor],
-        trn_idx_name: str,
-        tst_idx_name: str,
+        trn_idx_id: str,
+        tst_idx_id: str,
         train_param: dict = None,
     ) -> tuple[str, dict, str]:
         """Train and validate."""
-        model_name = self.train(predictor_class,
-                                trn_idx_name,
-                                param=train_param)
-        score, y_pred_name = self.validate(model_name, tst_idx_name)
-        return model_name, score, y_pred_name
+        model_id = self.train(predictor_class, trn_idx_id, param=train_param)
+        score, y_pred_name = self.validate(model_id, tst_idx_id)
+        return model_id, score, y_pred_name
 
     def validate_each(
         self,

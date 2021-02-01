@@ -16,7 +16,7 @@ data['target'] = dataset['target']
 predictor_class = LightGBM
 train_param = {'objective': 'regression'}
 
-power_model = PowerModel('regression', 'target', store, data)
+power_model = PowerModel('regression', 'target', store, data, seed=2)
 print(power_model.calc_column_stats())
 
 idx = power_model.split_trn_val(0.8)
