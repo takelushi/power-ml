@@ -81,9 +81,9 @@ class Model:
                   n_jobs: int = 1) -> dict[str, pd.DataFrame]:
         if metrics is None:
             metrics = self.metrics
-
+        result = {}
         for metric in metrics:  # type: ignore
             perm = PermutationImportance(self._predictor, metric, x, y, n=n)
             perms = perm.calc(n_jobs=n_jobs)
-            self.perms[metric.__name__] = perms
-        return self.perms
+            result[metric.__name__] = perms
+        return result

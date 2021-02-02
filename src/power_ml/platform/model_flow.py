@@ -1,15 +1,34 @@
 """Model flow."""
 
-from typing import Any, Iterable, Type
+from typing import Any, Iterable, Optional, Type, TypedDict
 
 import numpy as np
 import pandas as pd
 
+from power_ml.ai.metrics import BaseMetric
 from power_ml.ai.model import Model
 from power_ml.ai.predictor.base_predictor import BasePredictor
+from power_ml.ai.selection.selector import BaseSelector, SELECTORS
+from power_ml.ai.selection.split import split_index
 from power_ml.platform.catalog import Catalog
 from power_ml.stats.col_stats import get_col_stats
 from power_ml.util.seed import set_seed, set_seed_random
+
+
+class Partition(TypedDict):
+    """Partition."""
+
+    names: tuple[str, str]
+    type: str
+    param: dict
+
+
+class CVPartition(TypedDict):
+    """CV Partition."""
+
+    cv_names: list[tuple[str, str]]
+    type: str
+    param: dict
 
 
 class ModelFlow:
@@ -20,10 +39,10 @@ class ModelFlow:
                  predictor_class: Type[BasePredictor],
                  target: str,
                  catalog: Catalog,
-                 data: Any,
+                 data_id: str,
+                 metrics: list[Type[BaseMetric]] = None,
                  train_param: dict = None,
-                 seed: int = None,
-                 n_perms: int = 1) -> None:
+                 seed: int = None) -> None:
         """Initialize object."""
         if seed is None:
             seed = set_seed_random()
@@ -34,207 +53,363 @@ class ModelFlow:
         self.target = target
         self.catalog = catalog
         self.predictor_class = predictor_class
+        self.metrics = metrics
         self.train_param = {} if train_param is None else train_param
-        self.n_perms = n_perms
 
-        # TODO: Check data exist.
-        if isinstance(data, str):
-            data = self.catalog.store.load(data)
+        self.score: dict = {}
+        self.perm: dict = {}
 
-        data_id = self.catalog.save_table(data)
+        self.data_id = data_id
+        self.model_id: Optional[str] = None
+        self.partition: Optional[Partition] = None
+        self.cv_partition: Optional[CVPartition] = None
 
-        self._data: dict[str, Any] = {'master': data_id}
-        self._models: dict[str, Any] = {}
-        self._perms: dict[str, Any] = {'base': {}, 'validation': {}}
+        self.cv_model_ids: Optional[list[str]] = None
 
-    def _register_trn_val(self,
-                          data_type: str,
-                          trn_idx: pd.Index,
-                          val_idx: pd.Index = None) -> tuple[str, str]:
-        """Register train and validation index."""
-        if data_type not in ['base', 'validation']:
-            raise ValueError(
-                'Cannot register. data_type must be base or validation')
-        data_id = self._data['master']
-        master_data = self.catalog.load_table(data_id)
-        trn_idx_id = self.catalog.save_index(data_id, trn_idx)
+    def _get_model(self) -> Model:
+        predictor = self.predictor_class(self.target_type, self.train_param)
+        return Model(predictor, metrics=self.metrics)
 
-        if val_idx is not None:
-            val_idx_id = self.catalog.save_index(data_id, val_idx)
+    def create_partition(self, partition_type: str,
+                         **kwargs) -> tuple[str, str]:
+        set_seed(self.seed)
+        if self.partition is not None:
+            raise RuntimeError('Partition already created.')
+        data = self.catalog.load_table(self.data_id)
+
+        if partition_type == 'random':
+            trn_ratio = kwargs['trn_ratio']
+            val_ratio = kwargs.get('val_ratio', None)
+
+            if trn_ratio <= 0 or 1 <= trn_ratio:
+                raise ValueError('The ratio must be 0 < v < 1.')
+            if val_ratio is not None:
+                if val_ratio <= 0 or 1 <= val_ratio:
+                    raise ValueError('The ratio must be 0 < v < 1.')
+                if trn_ratio + val_ratio > 1:
+                    raise ValueError('The total ratio must be less equal 1.')
+
+            trn_size = round(data.shape[0] * trn_ratio)
+            trn_idx = data.sample(trn_size).index
+            if val_ratio is None:
+                val_idx = data.drop(trn_idx).index
+            else:
+                val_size = round(data.shape[0] * val_ratio)
+                val_idx = data.drop(trn_idx).sample(val_size).index
+            trn_idx_id = self.catalog.save_index(self.data_id, trn_idx)
+            val_idx_id = self.catalog.save_index(self.data_id, val_idx)
+            names = trn_idx_id, val_idx_id
+        elif partition_type == 'manual':
+            trn_idx_id = kwargs['trn_idx_id']
+            val_idx_id = kwargs.get('val_idx_id', None)
+            names = self._register_partition(trn_idx_id, val_idx_id=val_idx_id)
         else:
-            val_idx = master_data.drop(trn_idx).index
-            val_idx_id = self.catalog.save_index(data_id, val_idx)
+            raise ValueError('Unknown partition_type.')
+
+        self.partition = Partition(names=names,
+                                   type=partition_type,
+                                   param=kwargs)
+
+        return trn_idx_id, val_idx_id
+
+    def _register_partition(self,
+                            trn_idx_id: str,
+                            val_idx_id: str = None) -> tuple[str, str]:
+        data = self.catalog.load_table(self.data_id)
+        trn_idx = self.catalog.load_index(trn_idx_id)
+
+        if val_idx_id is not None:
+            val_idx = self.catalog.load_index(val_idx_id)
+        else:
+            val_idx = data.drop(trn_idx).index
+            val_idx_id = self.catalog.save_index(self.data_id, val_idx)
 
         # Check index.
-        _ = master_data.iloc[trn_idx]
-        _ = master_data.iloc[val_idx]
+        _ = data.iloc[trn_idx]
+        _ = data.iloc[val_idx]
 
-        names = (trn_idx_id, val_idx_id)
-        if data_type == 'base':
-            self._data['base'] = names
-        elif data_type == 'validation':
-            self._data['validation'].append(names)
-        return names
+        return trn_idx_id, val_idx_id
 
-    def register_trn_val(self, trn_idx: pd.Index,
-                         val_idx: pd.Index) -> tuple[str, str]:
-        """Register data index."""
-        if 'base' in self._data:
-            raise ValueError('Already registered.')
-        return self._register_trn_val('base', trn_idx, val_idx=val_idx)
-
-    def register_validation(
-        self, idx_list: Iterable[tuple[pd.Index,
-                                       pd.Index]]) -> list[tuple[str, str]]:
-        """Register validation data index."""
-        if 'validation' in self._data:
-            raise ValueError('Already registered.')
-
-        self._data['validation'] = []
-        ids_li = []
-        for idx in idx_list:
-            ids_li.append(
-                self._register_trn_val('validation', idx[0], val_idx=idx[1]))
-
-        return ids_li
-
-    def calc_column_stats(self) -> pd.DataFrame:
-        """Calculate column stats."""
-        master_data = self.catalog.load_table(self._data['master'])
-        self.col_stats = get_col_stats(master_data)
-        return self.col_stats
-
-    def _train(
-        self,
-        idx_id: str,
-    ) -> str:
-        """Train."""
+    def _train(self, trn_idx_id: str) -> str:
         set_seed(self.seed)
-        predictor = self.predictor_class(self.target_type,
-                                         param=self.train_param)
-        model = Model(predictor)
-        data_idx = self.catalog.load_index(idx_id)
-        data = self.catalog.load_table(self._data['master']).iloc[data_idx]
-        x = data.drop(columns=[self.target])
-        y = data[self.target]
+        data = self.catalog.load_table(self.data_id)
+        data_idx = self.catalog.load_index(trn_idx_id)
+        sample = data.iloc[data_idx]
+        x = sample.drop(columns=[self.target])
+        y = sample[self.target]
+        model = self._get_model()
         model_id = model.hash_model(x, y)
         try:
             model = self.catalog.load_model(model_id)
         except IndexError:
             model.train(x, y)
-            self.catalog.save_model(model)
-        self._models['base'] = model_id
+            new_model_id = self.catalog.save_model(model)
+            assert new_model_id == model_id
+
         return model_id
 
     def train(self) -> str:
-        """Train."""
-        return self._train(self._data['base'][0])
+        if self.partition is None:
+            raise RuntimeError('Need to create partition.')
 
-    def _predict(self, model_id: str, idx_id: str) -> str:
-        """Predict."""
+        if self.model_id is not None:
+            raise RuntimeError('Already trained.')
+
+        trn_idx_id, _ = self.partition['names']
+
+        self.model_id = self._train(trn_idx_id)
+
+        return self.model_id
+
+    def _validate(self, model_id: str, val_idx_id: str) -> dict:
         set_seed(self.seed)
+        data = self.catalog.load_table(self.data_id)
         model = self.catalog.load_model(model_id)
-        data_id = self._data['master']
-        data_idx = self.catalog.load_index(idx_id)
-        data = self.catalog.load_table(data_id).iloc[data_idx]
-        x = data.drop(columns=[self.target])
+        data_idx = self.catalog.load_index(val_idx_id)
+        sample = data.iloc[data_idx]
+        x = sample.drop(columns=[self.target])
+        y = sample[self.target]
 
-        y_pred = model.predict(x)
-        y_pred_id = self.catalog.save_table(y_pred)
-        return y_pred_id
-
-    def predict(self) -> str:
-        """Predict."""
-        model_id = self._models['base']
-        idx_id = self._data['base'][1]
-        return self._predict(model_id, idx_id)
-
-    def _validate(self, model_id: str, idx_id: str) -> tuple[dict, str]:
-        set_seed(self.seed)
-        model = self.catalog.load_model(model_id)
-        data_id = self._data['master']
-        data_idx = self.catalog.load_index(idx_id)
-        data = self.catalog.load_table(data_id).iloc[data_idx]
-        x = data.drop(columns=[self.target])
-        y = data[self.target]
         score, y_pred = model.validate(x, y)
-        y_pred_id = self.catalog.save_table(y_pred)
-        return score, y_pred_id
+        # TODO: Save y_pred?
+        return score
 
-    def validate(self) -> tuple[dict, str]:
-        """Validate."""
-        model_id = self._models['base']
-        idx_id = self._data['base'][1]
-        return self._validate(model_id, idx_id)
+    def validate(self, mode='both') -> dict:
+        if self.partition is None:
+            raise RuntimeError('Need to create partition.')
+        if self.model_id is None:
+            raise RuntimeError('Need to train model.')
 
-    def train_validate(
-        self,
-        trn_idx_id: str,
-        tst_idx_id: str,
-    ) -> tuple[str, dict, str]:
-        """Train and validate."""
-        model_id = self._train(trn_idx_id)
-        score, y_pred_name = self._validate(model_id, tst_idx_id)
-        return model_id, score, y_pred_name
+        # if  is not None:
+        #     raise RuntimeError('Already validated.')
+        model_id = self.model_id
+        names = self.partition['names']
+        result = {}
 
-    def validate_each(self) -> tuple[float, list]:
-        results = []
-        scores: dict[str, list[float]] = {}
-        for idx in self._data['validation']:
-            result = self.train_validate(idx[0], idx[1])
-            results.append(result)
-            for metric, score in result[1].items():
-                scores[metric] = scores.get(metric, [])
-                scores[metric].append(score)
-        score_mean: dict[str, float] = {}
-        for metric in scores.keys():
-            score_mean[metric] = np.mean(scores[metric])
+        def _f(use_train: bool):
+            idx = names[0] if use_train else names[1]
+            key = 'train' if use_train else 'validation'
+            self.score[key] = self._validate(model_id, idx)
+            result[key] = self.score[key]
 
-        return score_mean, results
+        if mode == 'train':
+            _f(True)
+        elif mode == 'validation':
+            _f(False)
+        elif mode == 'both':
+            _f(True)
+            _f(False)
+        else:
+            raise ValueError('Invalid mode.')
 
-    def _calc_perm(self, model_id: str,
-                   idx_id: str) -> dict[str, pd.DataFrame]:
-        set_seed(self.seed)
-        model = self.catalog.load_model(model_id)
-        data_id = self._data['master']
-        data_idx = self.catalog.load_index(idx_id)
-        data = self.catalog.load_table(data_id).iloc[data_idx]
-        x = data.drop(columns=[self.target])
-        y = data[self.target]
-        result = model.calc_perm(x, y, n=self.n_perms)
-        self.catalog.save_model(model)
         return result
 
-    def calc_perm(self, mode: str) -> dict[str, pd.DataFrame]:
-        if mode not in ['train', 'validation']:
-            raise ValueError('mode must be train or validation.')
-        idx_pair = self._data['base']
-        idx = idx_pair[0] if mode == 'train' else idx_pair[1]
-        perm = self._calc_perm(self._models['base'], idx)
-        self._perms['base'][mode] = perm
-        return perm
+    def train_validate(self) -> tuple[str, dict]:
+        model_id = self.train()
+        score = self.validate()
+        return model_id, score
 
-    def calc_perm_each(self, mode: str) -> dict[str, pd.DataFrame]:
-        if mode not in ['train', 'validation']:
-            raise ValueError('mode must be train or validation.')
-        idx_pair_li = self._data['validation']
-        if mode == 'train':
-            idx_li = [idx_pair[0] for idx_pair in idx_pair_li]
+    def create_cv_partition(self, cv_type: str,
+                            **kwargs) -> list[tuple[str, str]]:
+        if self.cv_partition is not None:
+            raise RuntimeError('CV partition already created.')
+        set_seed(self.seed)
+        data = self.catalog.load_table(self.data_id)
+
+        selector_class = SELECTORS.get(cv_type.lower(), None)
+        if selector_class is not None:
+            selector: BaseSelector = selector_class(**kwargs)
+            cv_names = []
+            for idx in selector.split(data):
+                trn_idx = pd.Index(idx[0])
+                val_idx = pd.Index(idx[1])
+                idx_ids = (
+                    self.catalog.save_index(self.data_id, trn_idx),
+                    self.catalog.save_index(self.data_id, val_idx),
+                )
+                cv_names.append(idx_ids)
+        elif cv_type == 'manual':
+            cv_names = kwargs['partition_idx_ids']
+            # self._register_partition(idx_ids[0], val_idx_id=idx_ids[1])
         else:
-            idx_li = [idx_pair[1] for idx_pair in idx_pair_li]
+            raise ValueError('Unknown cv_type.')
 
-        perms = {}
-        for idx in idx_li:
-            perm = self._calc_perm(self._models['base'], idx)
+        self.cv_partition = CVPartition(cv_names=cv_names,
+                                        type=cv_type,
+                                        param=kwargs)
 
-            for metric, p in perm.items():
-                if metric not in perms:
-                    perms[metric] = {}
+        return cv_names
 
-                    for row in p.itertuples():
-                        perms[metric][row[1]] = row[3]
-                else:
-                    for row in p.itertuples():
-                        perms[metric][row[1]] += row[3]
-        self._perms['validation'][mode] = perms
-        return perms
+    def train_cv(self) -> list[str]:
+        if self.cv_partition is None:
+            raise RuntimeError('Need to create cv partition.')
+
+        if self.cv_model_ids is not None:
+            raise RuntimeError('Already trained.')
+
+        model_ids = []
+        for names in self.cv_partition['cv_names']:
+            trn_idx_id, _ = names
+            model_id = self._train(trn_idx_id)
+            model_ids.append(model_id)
+        self.cv_model_ids = model_ids
+
+        return self.cv_model_ids
+
+    def _validate_cv(self, use_train: bool = False) -> tuple[dict, list[dict]]:
+        if self.cv_partition is None:
+            raise RuntimeError('Need to create cv partition.')
+        if self.cv_model_ids is None:
+            raise RuntimeError('Need to train cv model.')
+
+        # if  is not None:
+        #     raise RuntimeError('Already validated.')
+        scores_li = []
+        cv_model_ids = self.cv_model_ids
+        cv_names = self.cv_partition['cv_names']
+
+        tmp_scores: dict[str, list[float]] = {}
+        for model_id, names in zip(cv_model_ids, cv_names):
+            idx_id = names[0] if use_train else names[1]
+            scores = self._validate(model_id, idx_id)
+            for metric, score in scores.items():
+                tmp_scores[metric] = tmp_scores.get(metric, [])
+                tmp_scores[metric].append(score)
+            scores_li.append(scores)
+
+        score_mean: dict[str, float] = {}
+        for metric in tmp_scores.keys():
+            score_mean[metric] = np.mean(tmp_scores[metric])
+        return score_mean, scores_li
+
+    def validate_cv(self, mode: str = 'both') -> dict:
+        result = {}
+
+        def _f(use_train: bool):
+            key = 'train' if use_train else 'validation'
+            cv_key = 'cv_{}'.format(key)
+            each_key = 'cv_{}_each'.format(key)
+            score_mean, each_score = self._validate_cv(use_train=use_train)
+            self.score[cv_key] = score_mean
+            self.score[each_key] = each_score
+            result[cv_key] = self.score[cv_key]
+            result[each_key] = self.score[each_key]
+
+        if mode == 'train':
+            _f(True)
+        elif mode == 'validation':
+            _f(False)
+        elif mode == 'both':
+            _f(True)
+            _f(False)
+        else:
+            raise ValueError('Invalid mode.')
+
+        return result
+
+    def cross_validation(self) -> tuple[list[str], dict]:
+        cv_model_ids = self.train_cv()
+        score = self.validate_cv()
+        return cv_model_ids, score
+
+    def _calc_perm(self, model_id: str, idx_id: str,
+                   **kwargs) -> dict[str, pd.DataFrame]:
+        set_seed(self.seed)
+        model = self.catalog.load_model(model_id)
+        data_idx = self.catalog.load_index(idx_id)
+        data = self.catalog.load_table(self.data_id).iloc[data_idx]
+        x = data.drop(columns=[self.target])
+        y = data[self.target]
+        result = model.calc_perm(x, y, **kwargs)
+        # TODO: Save perm
+        return result
+
+    def calc_perm(self, mode: str = 'both', **kwargs) -> dict:
+        if self.partition is None:
+            raise RuntimeError('Need to create partition.')
+        if self.model_id is None:
+            raise RuntimeError('Need to train model.')
+
+        names = self.partition['names']
+        result = {}
+
+        model_id = self.model_id
+
+        def _f(use_train: bool):
+            idx = names[0] if use_train else names[1]
+            key = 'train' if use_train else 'validation'
+            self.perm[key] = self._calc_perm(model_id, idx, **kwargs)
+            result[key] = self.perm[key]
+
+        if mode == 'train':
+            _f(True)
+        elif mode == 'validation':
+            _f(False)
+        elif mode == 'both':
+            _f(True)
+            _f(False)
+        else:
+            raise ValueError('Invalid mode.')
+
+        return result
+
+    def calc_cv_perm(self, mode: str = 'both', **kwargs) -> dict:
+        if self.cv_partition is None:
+            raise RuntimeError('Need to create cv partition.')
+        if self.cv_model_ids is None:
+            raise RuntimeError('Need to train cv model.')
+
+        result = {}
+
+        cv_model_ids = self.cv_model_ids
+        cv_partition = self.cv_partition['cv_names']
+
+        def _f_mean_perm(perms_li: list[dict]) -> dict:
+            mean_perm: dict[str, pd.DataFrame] = {}
+            metrics = set()
+            cols = ['Weight', 'Score']
+            for perms in perms_li:
+                for metric, perm in perms.items():
+                    metrics.add(metric)
+                    if mean_perm.get(metric) is None:
+                        mean_perm[metric] = perm[['Column'] + cols].copy()
+                    else:
+                        mean_perm[metric][cols] += perm[cols]
+
+            for metric in list(metrics):
+                df = mean_perm[metric]
+                df[cols] /= len(perms_li)
+                df['Top'] = df['Weight'].rank(ascending=False).astype(int)
+                f = lambda x: 'no' if x == 1 else 'better' if x > 1 else 'worse'  # noqa: E731,E501
+                df['Type'] = df['Weight'].apply(f)
+                mean_perm[metric] = df.sort_values(by=['Weight'],
+                                                   ascending=False)
+
+            return mean_perm
+
+        def _f(use_train: bool):
+            key = 'train' if use_train else 'validation'
+            cv_key = 'cv_{}'.format(key)
+            each_key = 'cv_{}_each'.format(key)
+
+            perms = []
+            for model_id, names in zip(cv_model_ids, cv_partition):
+                idx = names[0] if use_train else names[1]
+                perm = self._calc_perm(model_id, idx, **kwargs)
+                perms.append(perm)
+            self.perm[cv_key] = _f_mean_perm(perms)
+            self.perm[each_key] = perms
+            result[cv_key] = self.perm[cv_key]
+            result[each_key] = self.perm[each_key]
+
+        if mode == 'train':
+            _f(True)
+        elif mode == 'validation':
+            _f(False)
+        elif mode == 'both':
+            _f(True)
+            _f(False)
+        else:
+            raise ValueError('Invalid mode.')
+
+        return result
