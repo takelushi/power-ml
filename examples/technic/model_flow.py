@@ -87,11 +87,10 @@ else:
         print('    {}'.format(score))
 
 # Permutation Importance
-perms = model_flow.calc_perm(n=10)
+perms = model_flow.calc_perm(n=5)
 print(perms['train']['MAE'])
-print(perms['validation']['MAE'])
 
 # CV Permutation Importance
-cv_perms = model_flow.calc_cv_perm(n=10)
+cv_perms = model_flow.calc_cv_perm(n=5)
 print(cv_perms.keys())
-print(cv_perms['cv_train'])
+print(cv_perms['cv_train']['MAE'])

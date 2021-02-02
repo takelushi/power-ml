@@ -1,6 +1,6 @@
 """Model flow."""
 
-from typing import Any, Iterable, Optional, Type, TypedDict
+from typing import Optional, Type, TypedDict
 
 import numpy as np
 import pandas as pd
@@ -258,11 +258,12 @@ class ModelFlow:
         if self.cv_model_ids is not None:
             raise RuntimeError('Already trained.')
 
-        model_ids = []
-        for names in self.cv_partition['cv_names']:
+        cv_names = self.cv_partition['cv_names']
+        model_ids = [''] * len(cv_names)
+        for i, names in enumerate(cv_names):
             trn_idx_id, _ = names
-            model_id = self._train(trn_idx_id)
-            model_ids.append(model_id)
+            model_ids[i] = self._train(trn_idx_id)
+
         self.cv_model_ids = model_ids
 
         return self.cv_model_ids
@@ -335,7 +336,7 @@ class ModelFlow:
         # TODO: Save perm
         return result
 
-    def calc_perm(self, mode: str = 'both', **kwargs) -> dict:
+    def calc_perm(self, mode: str = 'train', **kwargs) -> dict:
         if self.partition is None:
             raise RuntimeError('Need to create partition.')
         if self.model_id is None:
@@ -364,7 +365,7 @@ class ModelFlow:
 
         return result
 
-    def calc_cv_perm(self, mode: str = 'both', **kwargs) -> dict:
+    def calc_cv_perm(self, mode: str = 'train', **kwargs) -> dict:
         if self.cv_partition is None:
             raise RuntimeError('Need to create cv partition.')
         if self.cv_model_ids is None:
@@ -403,11 +404,13 @@ class ModelFlow:
             cv_key = 'cv_{}'.format(key)
             each_key = 'cv_{}_each'.format(key)
 
-            perms = []
-            for model_id, names in zip(cv_model_ids, cv_partition):
+            perms: list[dict] = [{}] * len(cv_model_ids)
+            for i in range(len(cv_model_ids)):
+                model_id = cv_model_ids[i]
+                names = cv_partition[i]
                 idx = names[0] if use_train else names[1]
                 perm = self._calc_perm(model_id, idx, **kwargs)
-                perms.append(perm)
+                perms[i] = perm
             self.perm[cv_key] = _f_mean_perm(perms)
             self.perm[each_key] = perms
             result[cv_key] = self.perm[cv_key]
