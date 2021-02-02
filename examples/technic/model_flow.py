@@ -31,6 +31,9 @@ model_flow = ModelFlow(target_type,
                        train_param=train_param,
                        seed=20)
 
+column_stats = model_flow.get_column_stats()
+print(column_stats)
+
 part_idx = model_flow.create_partition('random', trn_ratio=0.8)
 print('partition index id: {}'.format(part_idx))
 

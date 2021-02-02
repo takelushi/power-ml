@@ -9,9 +9,8 @@ from power_ml.ai.metrics import BaseMetric
 from power_ml.ai.model import Model
 from power_ml.ai.predictor.base_predictor import BasePredictor
 from power_ml.ai.selection.selector import BaseSelector, SELECTORS
-from power_ml.ai.selection.split import split_index
 from power_ml.platform.catalog import Catalog
-from power_ml.stats.col_stats import get_col_stats
+from power_ml.stats.col_stats import get_col_stats, pretty_col_stats
 from power_ml.util.seed import set_seed, set_seed_random
 
 
@@ -65,6 +64,18 @@ class ModelFlow:
         self.cv_partition: Optional[CVPartition] = None
 
         self.cv_model_ids: Optional[list[str]] = None
+
+        self.column_stats: Optional[pd.DataFrame] = None
+
+    def get_column_stats(self, pretty: bool = True) -> pd.DataFrame:
+        if self.column_stats is None:
+            data = self.catalog.load_table(self.data_id)
+            self.column_stats = get_col_stats(data, pretty=False)
+
+        if pretty:
+            return pretty_col_stats(self.column_stats)
+        else:
+            return self.column_stats
 
     def _get_model(self) -> Model:
         predictor = self.predictor_class(self.target_type, self.train_param)

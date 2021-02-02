@@ -50,6 +50,22 @@ def calc_col_stats(df: pd.DataFrame) -> Iterable[tuple[str, dict]]:
         yield col, col_info
 
 
+def pretty_col_stats(df: pd.DataFrame) -> pd.DataFrame:
+    df = df.replace(np.nan, '-', regex=True)
+
+    def _f(v):
+        if isinstance(v, float) or isinstance(v, int):
+            return round_float(v * 100, 2)
+        else:
+            return v
+
+    for col in df.columns:
+        if '%' in col:
+            df[col] = df[col].apply(_f)
+
+    return df
+
+
 def get_col_stats(df: pd.DataFrame, pretty: bool = True) -> pd.DataFrame:
     """Get column info.
 
@@ -63,15 +79,5 @@ def get_col_stats(df: pd.DataFrame, pretty: bool = True) -> pd.DataFrame:
 
     result = pd.DataFrame([{'column': k, **v} for k, v in col_infos.items()])
     if pretty:
-        result = result.replace(np.nan, '-', regex=True)
-
-        def _f(v):
-            if isinstance(v, float) or isinstance(v, int):
-                return round_float(v * 100, 2)
-            else:
-                return v
-
-        for col in result.columns:
-            if '%' in col:
-                result[col] = result[col].apply(_f)
+        result = pretty_col_stats(result)
     return result
