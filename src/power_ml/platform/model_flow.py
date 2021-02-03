@@ -9,6 +9,7 @@ from power_ml.ai.metrics import BaseMetric
 from power_ml.ai.model import Model
 from power_ml.ai.predictor.base_predictor import BasePredictor
 from power_ml.ai.selection.selector import BaseSelector, SELECTORS
+from power_ml.ai.selection.split import split_index
 from power_ml.platform.catalog import Catalog
 from power_ml.stats.col_stats import get_col_stats, pretty_col_stats
 from power_ml.util.seed import set_seed, set_seed_random
@@ -92,21 +93,7 @@ class ModelFlow:
             trn_ratio = kwargs['trn_ratio']
             val_ratio = kwargs.get('val_ratio', None)
 
-            if trn_ratio <= 0 or 1 <= trn_ratio:
-                raise ValueError('The ratio must be 0 < v < 1.')
-            if val_ratio is not None:
-                if val_ratio <= 0 or 1 <= val_ratio:
-                    raise ValueError('The ratio must be 0 < v < 1.')
-                if trn_ratio + val_ratio > 1:
-                    raise ValueError('The total ratio must be less equal 1.')
-
-            trn_size = round(data.shape[0] * trn_ratio)
-            trn_idx = data.sample(trn_size).index
-            if val_ratio is None:
-                val_idx = data.drop(trn_idx).index
-            else:
-                val_size = round(data.shape[0] * val_ratio)
-                val_idx = data.drop(trn_idx).sample(val_size).index
+            trn_idx, val_idx = split_index(data, trn_ratio, b_ratio=val_ratio)
             trn_idx_id = self.catalog.save_index(self.data_id, trn_idx)
             val_idx_id = self.catalog.save_index(self.data_id, val_idx)
             names = trn_idx_id, val_idx_id
