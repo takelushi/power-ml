@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "power-ml"
-version = "1.0.0-alpha.1"
+version = "1.0.0-alpha.2"
 description = "Empowerment Python Machine Learing Stack."
 authors = ["Takeru Saito <takelushi@gmail.com>"]
 readme = "README.md"
