@@ -12,6 +12,14 @@ Empowerment Python Machine Learing Stack.
 poetry install --no-dev
 ```
 
+## Other Requirements
+
+* lightgbm
+   * For LightGBM model.
+* boto3
+   * For AWS support.
+```
+
 ## Development
 
 ```sh

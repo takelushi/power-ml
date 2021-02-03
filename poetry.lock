@@ -603,7 +603,7 @@ python-versions = ">=3.6"
 name = "lightgbm"
 version = "3.1.1"
 description = "LightGBM Python Package"
-category = "main"
+category = "dev"
 optional = false
 python-versions = "*"
 
@@ -1024,7 +1024,7 @@ testing = ["pytest (>=3.5,!=3.7.3)", "pytest-checkdocs (>=1.2.3)", "pytest-flake
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.7"
-content-hash = "1679f40105324d424f938769489fa905cfd4508a7cff53e5c382b7fbf9435f47"
+content-hash = "c8854ab78edcab6def58b02aae51c0cc1e3d80c83b3bf4499faed1a4458f5f1b"
 
 [metadata.files]
 atomicwrites = [
