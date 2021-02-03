@@ -14,7 +14,7 @@ x = pd.DataFrame(dataset['data'], columns=dataset['feature_names'])
 y = dataset['target']
 
 # Train model.
-predictor = SklearnPredictor(LinearRegression, 'regression', metrics=[MAE])
+predictor = SklearnPredictor(LinearRegression, 'regression')
 predictor.train(x, y)
 
 # Initialize.
@@ -39,14 +39,14 @@ perms = perm.calc(n_jobs=-1)
 print(perms)
 
 # Check MAE.
-print(predictor.evaluate(x, y)[0])
+print(MAE(y, predictor.predict(x)))
 
 # Drop worse features.
 worse_features = list(perms[perms['Type'] == 'worse']['Column'])
 print('Worse features: {}'.format(worse_features))
 x = x.drop(columns=worse_features)
-redictor = SklearnPredictor(LinearRegression, 'regression', metrics=[MAE])
+redictor = SklearnPredictor(LinearRegression, 'regression')
 predictor.train(x, y)
 
 # MAE will more better.
-print(predictor.evaluate(x, y)[0])
+print(MAE(y, predictor.predict(x)))

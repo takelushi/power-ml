@@ -1,6 +1,5 @@
 """Permutation Importance."""
 
-from abc import ABC
 from typing import Iterable, Type
 
 import combu
@@ -12,7 +11,7 @@ from power_ml.ai.predictor.base_predictor import BasePredictor
 from power_ml.ai.types import X_TYPE, Y_TYPE
 
 
-class PermutationImportance(ABC):
+class PermutationImportance:
     """Permutation Importance."""
 
     def __init__(

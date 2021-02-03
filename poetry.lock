@@ -934,6 +934,14 @@ optional = false
 python-versions = ">=3.5"
 
 [[package]]
+name = "tinydb"
+version = "4.3.0"
+description = "TinyDB is a tiny, document oriented database optimized for your happiness :)"
+category = "main"
+optional = false
+python-versions = ">=3.5,<4.0"
+
+[[package]]
 name = "toml"
 version = "0.10.2"
 description = "Python Library for Tom's Obvious, Minimal Language"
@@ -1005,7 +1013,7 @@ testing = ["pytest (>=3.5,!=3.7.3)", "pytest-checkdocs (>=1.2.3)", "pytest-flake
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.9"
-content-hash = "ffcd5112690f7796072d62e7ace532e8166c3a4445ff06137acf9e1e4b771690"
+content-hash = "4b18f3c76b8f8753a66f70c10f58d65f1a1cb6033931e6eddafdf5c45c95f19f"
 
 [metadata.files]
 atomicwrites = [
@@ -1500,6 +1508,10 @@ snowballstemmer = [
 threadpoolctl = [
     {file = "threadpoolctl-2.1.0-py3-none-any.whl", hash = "sha256:38b74ca20ff3bb42caca8b00055111d74159ee95c4370882bbff2b93d24da725"},
     {file = "threadpoolctl-2.1.0.tar.gz", hash = "sha256:ddc57c96a38beb63db45d6c159b5ab07b6bced12c45a1f07b2b92f272aebfa6b"},
+]
+tinydb = [
+    {file = "tinydb-4.3.0-py3-none-any.whl", hash = "sha256:c8a8887269927e077f3aa16fddbf4debd176c10edc4ac8a5ce48ced0b10adf8c"},
+    {file = "tinydb-4.3.0.tar.gz", hash = "sha256:1d102d06f9bb22d739d8061b490c64d420de70dca5f95ebd43a492c43c7bd303"},
 ]
 toml = [
     {file = "toml-0.10.2-py2.py3-none-any.whl", hash = "sha256:806143ae5bfb6a3c6e736a764057db0e6a0e05e338b5630894a5f779cabb4f9b"},

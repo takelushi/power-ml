@@ -9,23 +9,23 @@ from power_ml.data.local_pickle_store import LocalPickleStore
 store = LocalPickleStore('./tmp/store')
 
 x, y = load_boston(return_X_y=True)
-trn_x_name = store.save(x[:400])
-trn_y_name = store.save(y[:400])
-tst_x_name = store.save(x[400:])
-tst_y_name = store.save(y[400:])
+x_trn_name = store.save(x[:400])
+y_trn_name = store.save(y[:400])
+x_tst_name = store.save(x[400:])
+y_tst_name = store.save(y[400:])
 
 
 def train(param: dict) -> tuple[LightGBM, dict]:
     """Train function."""
-    trn_x = store.load(trn_x_name)
-    trn_y = store.load(trn_y_name)
-    tst_x = store.load(tst_x_name)
-    tst_y = store.load(tst_y_name)
+    x_trn = store.load(x_trn_name)
+    y_trn = store.load(y_trn_name)
+    x_tst = store.load(x_tst_name)
+    y_tst = store.load(y_tst_name)
 
-    predictor = LightGBM('regression')
-    predictor.fit(trn_x, trn_y, param=param)
+    predictor = LightGBM('regression', param=param)
+    predictor.train(x_trn, y_trn)
 
-    score, _ = predictor.evaluate(tst_x, tst_y)
+    score, _ = predictor.evaluate(x_tst, y_tst)
 
     return predictor, score
 
