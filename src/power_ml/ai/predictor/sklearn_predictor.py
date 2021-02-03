@@ -15,11 +15,10 @@ class SklearnPredictor(BasePredictor):
     def __init__(self,
                  sklearn_class: type,
                  target_type: str,
-                 metrics: list[Type[BaseMetric]] = None,
                  meta: dict = None) -> None:
         """Initialize object."""
         self.sklearn_class = sklearn_class
-        super().__init__(target_type, metrics=metrics, meta=meta)
+        super().__init__(target_type, meta=meta)
 
     def get_train_param(self) -> dict:
         """Get fit parameter."""

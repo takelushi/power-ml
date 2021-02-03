@@ -3,7 +3,10 @@ name = "power-ml"
 version = "1.0.0-alpha.0"
 description = "Empowerment Python Machine Learing Stack."
 authors = ["Takeru Saito <takelushi@gmail.com>"]
+readme = "README.md"
 license = "MIT"
+repository = "https://github.com/takelushi/power-ml"
+
 
 [tool.poetry.dependencies]
 python = "^3.9"
@@ -14,6 +17,7 @@ boto3 = "^1.16.63"
 lightgbm = "^3.1.1"
 psutil = "^5.8.0"
 joblib = "^1.0.0"
+tinydb = "^4.3.0"
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2.2"
@@ -40,6 +44,9 @@ pytest-html = "^3.1.1"
 pytest-cov = "^2.11.1"
 boto3-stubs = {extras = ["s3"], version = "^1.16.63"}
 combu = "^1.2.1"
+
+[tool.poetry.urls]
+issues = "https://github.com/takelushi/power-ml/issues"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
