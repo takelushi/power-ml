@@ -1,6 +1,6 @@
 # power-ml
 
-Empowerment Python Machine Learing Stack.
+Empowerment Python Machine Learning Stack.
 
 ## Install
 
